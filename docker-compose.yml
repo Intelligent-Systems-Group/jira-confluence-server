@@ -1,0 +1,119 @@
+version: '3'
+
+networks:
+  web:
+    external:
+      name: web
+  backend:
+    driver: bridge
+
+services:
+  mysql:
+    image: mysql:5.7
+    container_name: mysql
+    expose:
+      - "3306"
+    labels:
+      - "traefik.enable=false"
+    environment:
+      - "MYSQL_ROOT_PASSWORD=pxQIrtMxmtD0naoKXUI0"
+    volumes:
+      - "/data/mysql:/var/lib/mysql"
+      - "./atlassian/atlassian-mysql.cnf:/etc/mysql/mysql.conf.d/atlassian-mysql.cnf"
+    networks:
+      - backend
+      - default
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    labels:
+      - "traefik.enable=true"
+      - "traefik.port=80"
+      - "traefik.backend=phpmyadmin"
+      - "traefik.frontend.rule=Host:pma.isml.eu"
+      - "traefik.docker.network=web"
+    expose:
+      - "80"
+    environment:
+      - "PMA_HOST=mysql"
+      - "PMA_PORT=3306"
+      - "MYSQL_ROOT_PASSWORD=pxQIrtMxmtD0nacKXUI0"
+    container_name: phpmyadmin
+    networks:
+      - backend
+      - web
+      - default
+    depends_on:
+      - mysql
+      - traefik
+
+  confluence:
+    image: atlassian/confluence-server
+    container_name: confluence
+    restart: always
+    volumes:
+      - "/data/confluence:/var/atlassian/application-data/confluence"
+      - "./atlassian/mysql-connector-java-5.1.47.jar:/opt/atlassian/confluence/confluence/WEB-INF/lib/mysql-connector-java-5.1.47.jar"
+      - "./atlassian/confluence-server.xml:/opt/atlassian/confluence/conf/server.xml"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.port=8090"
+      - "traefik.backend=confluence"
+      - "traefik.frontend.rule=Host:confluence.isml.eu"
+      - "traefik.docker.network=web"
+    expose:
+      - "8090"
+      - "8091"
+    networks:
+      - backend
+      - web
+      - default
+    depends_on:
+      - mysql
+      - traefik
+
+  jira:
+    image: dchevell/jira-software:latest
+    container_name: jira
+    restart: always
+    volumes:
+      - "/data/jira:/var/atlassian/application-data/jira"
+      - "./atlassian/mysql-connector-java-5.1.47.jar:/opt/atlassian/jira/lib/mysql-connector-5.1.47.jar"
+      - "./atlassian/jira-server.xml:/opt/atlassian/jira/conf/server.xml"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.port=8080"
+      - "traefik.backend=jira"
+      - "traefik.frontend.rule=Host:jira.isml.eu"
+      - "traefik.docker.network=web"
+    expose:
+      - "8080"
+    networks:
+      - backend
+      - web
+      - default
+    depends_on:
+      - mysql
+      - traefik
+
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./traefik.toml:/traefik.toml"
+      - "./acme.json:/acme.json"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=web"
+      - "traefik.frontend.rule=Host:traefik.isml.eu"
+      - "traefik.port=8080"
+    expose:
+      - "8080"
+    networks:
+      - web
+      - default
+    restart: always
